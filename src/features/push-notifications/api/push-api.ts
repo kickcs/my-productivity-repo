@@ -6,7 +6,31 @@ export interface PushSubscriptionData {
   auth: string;
 }
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+
 export const pushApi = {
+  async sendTestNotification(): Promise<{ success: boolean; sent: number }> {
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) throw new Error("Not authenticated");
+
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/send-test-notification`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to send test notification");
+    }
+
+    return response.json();
+  },
+
   async saveSubscription(subscription: PushSubscriptionData): Promise<void> {
     const supabase = createClient();
     const {

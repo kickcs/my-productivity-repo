@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/sha
 import { ExportButton } from "@/features/export-data";
 import { ClearDataButton } from "@/features/clear-data";
 import { SignOutButton } from "@/features/auth";
-import { NotificationToggle } from "@/features/push-notifications";
+import { NotificationToggle, TestNotificationButton } from "@/features/push-notifications";
 import { BottomNav } from "@/widgets/bottom-navigation";
 
 export function SettingsPage() {
@@ -25,8 +25,9 @@ export function SettingsPage() {
               <CardTitle>Уведомления</CardTitle>
               <CardDescription>Напоминание оценить день в 9:00</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               <NotificationToggle />
+              <TestNotificationButton />
             </CardContent>
           </Card>
 
