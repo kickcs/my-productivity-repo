@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/sha
 import { ExportButton } from "@/features/export-data";
 import { ClearDataButton } from "@/features/clear-data";
 import { SignOutButton } from "@/features/auth";
+import { NotificationToggle } from "@/features/push-notifications";
 import { BottomNav } from "@/widgets/bottom-navigation";
 
 export function SettingsPage() {
@@ -18,6 +19,17 @@ export function SettingsPage() {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto pb-24">
         <div className="p-4 space-y-4">
+          {/* Notifications */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Уведомления</CardTitle>
+              <CardDescription>Напоминание оценить день в 9:00</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <NotificationToggle />
+            </CardContent>
+          </Card>
+
           {/* Data Management */}
           <Card>
             <CardHeader>
