@@ -7,7 +7,7 @@ import { pushApi } from "../api";
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
 console.log("[Push] VAPID_PUBLIC_KEY loaded:", VAPID_PUBLIC_KEY ? VAPID_PUBLIC_KEY.substring(0, 20) + "..." : "EMPTY!");
 
-function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const rawData = window.atob(base64);
@@ -15,7 +15,7 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   for (let i = 0; i < rawData.length; ++i) {
     outputArray[i] = rawData.charCodeAt(i);
   }
-  return outputArray.buffer as ArrayBuffer;
+  return outputArray;
 }
 
 export const pushKeys = {
@@ -124,12 +124,20 @@ export function usePushNotifications() {
           throw new Error("VAPID_PUBLIC_KEY is not configured");
         }
         const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-        console.log("[Push] ApplicationServerKey length:", applicationServerKey.byteLength);
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey,
-        });
-        console.log("[Push] Created subscription:", subscription.endpoint.substring(0, 50));
+        console.log("[Push] ApplicationServerKey length:", applicationServerKey.length);
+        console.log("[Push] First bytes:", Array.from(applicationServerKey.slice(0, 5)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' '));
+        try {
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey,
+          });
+          console.log("[Push] Created subscription:", subscription.endpoint.substring(0, 50));
+        } catch (subscribeError: any) {
+          console.error("[Push] Subscribe failed:", subscribeError.name, subscribeError.message);
+          console.error("[Push] Registration state:", registration.active?.state);
+          console.error("[Push] Push Manager:", registration.pushManager);
+          throw subscribeError;
+        }
       }
 
       const json = subscription.toJSON();
