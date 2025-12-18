@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { pushApi } from "../api";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
-console.log("[Push] VAPID_PUBLIC_KEY loaded:", VAPID_PUBLIC_KEY ? VAPID_PUBLIC_KEY.substring(0, 20) + "..." : "EMPTY!");
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -47,7 +46,6 @@ export function usePushNotifications() {
         .register("/sw.js")
         .then(() => navigator.serviceWorker.ready)
         .then(async (reg) => {
-          console.log("[Push] Service Worker ready");
           setRegistration(reg);
           // Check if this browser already has a subscription
           const sub = await reg.pushManager.getSubscription();
@@ -73,16 +71,12 @@ export function usePushNotifications() {
   // Subscribe mutation
   const subscribeMutation = useMutation({
     mutationFn: async () => {
-      console.log("[Push] Starting subscribe...");
-
       if (!registration) {
-        console.error("[Push] No registration");
         throw new Error("Service Worker not registered");
       }
 
       // Wait for Service Worker to be active
       if (registration.installing || registration.waiting) {
-        console.log("[Push] Waiting for Service Worker to activate...");
         await new Promise<void>((resolve) => {
           const sw = registration.installing || registration.waiting;
           if (!sw) {
@@ -94,18 +88,14 @@ export function usePushNotifications() {
               resolve();
             }
           });
-          // Check if already active
           if (registration.active) {
             resolve();
           }
         });
-        console.log("[Push] Service Worker is now active");
       }
 
       // Request permission
-      console.log("[Push] Requesting permission...");
       const perm = await Notification.requestPermission();
-      console.log("[Push] Permission:", perm);
       setPermission(perm);
 
       if (perm !== "granted") {
@@ -113,57 +103,36 @@ export function usePushNotifications() {
       }
 
       // Get push subscription
-      console.log("[Push] Getting subscription...");
       let subscription = await registration.pushManager.getSubscription();
-      console.log("[Push] Existing subscription:", !!subscription);
 
       if (!subscription) {
-        console.log("[Push] Creating new subscription...");
-        console.log("[Push] Using VAPID key:", VAPID_PUBLIC_KEY ? VAPID_PUBLIC_KEY.substring(0, 30) + "..." : "EMPTY!");
         if (!VAPID_PUBLIC_KEY) {
           throw new Error("VAPID_PUBLIC_KEY is not configured");
         }
         const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-        console.log("[Push] ApplicationServerKey length:", applicationServerKey.length);
-        console.log("[Push] First bytes:", Array.from(applicationServerKey.slice(0, 5)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' '));
-        try {
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey,
-          });
-          console.log("[Push] Created subscription:", subscription.endpoint.substring(0, 50));
-        } catch (subscribeError: any) {
-          console.error("[Push] Subscribe failed:", subscribeError.name, subscribeError.message);
-          console.error("[Push] Registration state:", registration.active?.state);
-          console.error("[Push] Push Manager:", registration.pushManager);
-          throw subscribeError;
-        }
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey,
+        });
       }
 
       const json = subscription.toJSON();
       if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
-        console.error("[Push] Invalid subscription data");
         throw new Error("Invalid subscription");
       }
 
       // Save to database
-      console.log("[Push] Saving to database...");
       await pushApi.saveSubscription({
         endpoint: json.endpoint,
         p256dh: json.keys.p256dh,
         auth: json.keys.auth,
       });
-      console.log("[Push] Saved successfully!");
 
       return subscription;
     },
     onSuccess: (subscription) => {
-      console.log("[Push] Subscribe success");
       setLocalSubscription(subscription);
       queryClient.invalidateQueries({ queryKey: pushKeys.subscription });
-    },
-    onError: (error) => {
-      console.error("[Push] Subscribe error:", error);
     },
   });
 
