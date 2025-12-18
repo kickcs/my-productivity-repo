@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { pushApi } from "../api";
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
+console.log("[Push] VAPID_PUBLIC_KEY loaded:", VAPID_PUBLIC_KEY ? VAPID_PUBLIC_KEY.substring(0, 20) + "..." : "EMPTY!");
 
 function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -41,10 +42,12 @@ export function usePushNotifications() {
     if (supported) {
       setPermission(Notification.permission);
 
-      // Register service worker
+      // Register service worker and wait for it to be ready
       navigator.serviceWorker
         .register("/sw.js")
+        .then(() => navigator.serviceWorker.ready)
         .then(async (reg) => {
+          console.log("[Push] Service Worker ready");
           setRegistration(reg);
           // Check if this browser already has a subscription
           const sub = await reg.pushManager.getSubscription();
@@ -77,6 +80,28 @@ export function usePushNotifications() {
         throw new Error("Service Worker not registered");
       }
 
+      // Wait for Service Worker to be active
+      if (registration.installing || registration.waiting) {
+        console.log("[Push] Waiting for Service Worker to activate...");
+        await new Promise<void>((resolve) => {
+          const sw = registration.installing || registration.waiting;
+          if (!sw) {
+            resolve();
+            return;
+          }
+          sw.addEventListener("statechange", () => {
+            if (sw.state === "activated") {
+              resolve();
+            }
+          });
+          // Check if already active
+          if (registration.active) {
+            resolve();
+          }
+        });
+        console.log("[Push] Service Worker is now active");
+      }
+
       // Request permission
       console.log("[Push] Requesting permission...");
       const perm = await Notification.requestPermission();
@@ -94,9 +119,15 @@ export function usePushNotifications() {
 
       if (!subscription) {
         console.log("[Push] Creating new subscription...");
+        console.log("[Push] Using VAPID key:", VAPID_PUBLIC_KEY ? VAPID_PUBLIC_KEY.substring(0, 30) + "..." : "EMPTY!");
+        if (!VAPID_PUBLIC_KEY) {
+          throw new Error("VAPID_PUBLIC_KEY is not configured");
+        }
+        const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+        console.log("[Push] ApplicationServerKey length:", applicationServerKey.byteLength);
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+          applicationServerKey,
         });
         console.log("[Push] Created subscription:", subscription.endpoint.substring(0, 50));
       }
