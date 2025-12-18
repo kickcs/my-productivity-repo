@@ -19,6 +19,7 @@ export function useRatings() {
   return useQuery({
     queryKey: ratingsKeys.all,
     queryFn: ratingsApi.getAll,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }
 
@@ -27,6 +28,7 @@ export function useRatingByDate(date: string) {
     queryKey: ratingsKeys.byDate(date),
     queryFn: () => ratingsApi.getByDate(date),
     enabled: !!date,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }
 
@@ -34,6 +36,7 @@ export function useRatingsForMonth(year: number, month: number) {
   return useQuery({
     queryKey: ratingsKeys.byMonth(year, month),
     queryFn: () => ratingsApi.getForMonth(year, month),
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }
 

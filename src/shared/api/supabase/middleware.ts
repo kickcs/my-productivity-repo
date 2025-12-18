@@ -29,9 +29,11 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
+  // getSession() reads from cookie without network call (~10ms)
+  // getUser() makes a network request to verify JWT (~200ms)
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
   // Protected routes
   const protectedPaths = ["/", "/history", "/analytics", "/settings", "/rate"];
@@ -45,13 +47,13 @@ export async function updateSession(request: NextRequest) {
   const authPaths = ["/sign-in", "/sign-up"];
   const isAuthPath = authPaths.includes(request.nextUrl.pathname);
 
-  if (!user && isProtectedPath) {
+  if (!session && isProtectedPath) {
     const url = request.nextUrl.clone();
     url.pathname = "/sign-in";
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPath) {
+  if (session && isAuthPath) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
