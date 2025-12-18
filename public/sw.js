@@ -1,13 +1,25 @@
 // Service Worker for Push Notifications
 
 self.addEventListener("push", (event) => {
-  if (!event.data) return;
+  console.log("[SW] Push received");
 
-  const data = event.data.json();
+  if (!event.data) {
+    console.log("[SW] No data in push event");
+    return;
+  }
+
+  let data;
+  try {
+    data = event.data.json();
+    console.log("[SW] Push data:", data);
+  } catch (e) {
+    console.error("[SW] Failed to parse push data:", e);
+    data = { title: "Оценка дня", body: event.data.text() };
+  }
+
   const options = {
     body: data.body || "Не забудьте оценить свой день!",
-    icon: "/icon-192.png",
-    badge: "/badge-72.png",
+    icon: "/icons/icon-192.png",
     vibrate: [100, 50, 100],
     data: {
       url: data.url || "/",
@@ -55,9 +67,11 @@ self.addEventListener("notificationclick", (event) => {
 });
 
 self.addEventListener("install", (event) => {
+  console.log("[SW] Installing...");
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
+  console.log("[SW] Activating...");
   event.waitUntil(clients.claim());
 });
