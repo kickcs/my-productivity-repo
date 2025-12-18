@@ -70,10 +70,17 @@ export function usePushNotifications() {
   // Subscribe mutation
   const subscribeMutation = useMutation({
     mutationFn: async () => {
-      if (!registration) throw new Error("Service Worker not registered");
+      console.log("[Push] Starting subscribe...");
+
+      if (!registration) {
+        console.error("[Push] No registration");
+        throw new Error("Service Worker not registered");
+      }
 
       // Request permission
+      console.log("[Push] Requesting permission...");
       const perm = await Notification.requestPermission();
+      console.log("[Push] Permission:", perm);
       setPermission(perm);
 
       if (perm !== "granted") {
@@ -81,32 +88,43 @@ export function usePushNotifications() {
       }
 
       // Get push subscription
+      console.log("[Push] Getting subscription...");
       let subscription = await registration.pushManager.getSubscription();
+      console.log("[Push] Existing subscription:", !!subscription);
 
       if (!subscription) {
+        console.log("[Push] Creating new subscription...");
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
         });
+        console.log("[Push] Created subscription:", subscription.endpoint.substring(0, 50));
       }
 
       const json = subscription.toJSON();
       if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+        console.error("[Push] Invalid subscription data");
         throw new Error("Invalid subscription");
       }
 
       // Save to database
+      console.log("[Push] Saving to database...");
       await pushApi.saveSubscription({
         endpoint: json.endpoint,
         p256dh: json.keys.p256dh,
         auth: json.keys.auth,
       });
+      console.log("[Push] Saved successfully!");
 
       return subscription;
     },
     onSuccess: (subscription) => {
+      console.log("[Push] Subscribe success");
       setLocalSubscription(subscription);
       queryClient.invalidateQueries({ queryKey: pushKeys.subscription });
+    },
+    onError: (error) => {
+      console.error("[Push] Subscribe error:", error);
     },
   });
 
