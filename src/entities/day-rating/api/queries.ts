@@ -6,7 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { ratingsApi } from "./ratings-api";
-import type { CreateRatingInput, UpdateRatingInput } from "../model/types";
+import type { CreateRatingInput, UpdateRatingInput, DayRating } from "../model/types";
 
 export const ratingsKeys = {
   all: ["ratings"] as const,
@@ -45,15 +45,54 @@ export function useCreateRating() {
 
   return useMutation({
     mutationFn: (input: CreateRatingInput) => ratingsApi.create(input),
-    onSuccess: (data) => {
+    onMutate: async (newRating) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ratingsKeys.all });
+
+      // Snapshot previous value
+      const previousRatings = queryClient.getQueryData<DayRating[]>(ratingsKeys.all);
+
+      // Optimistically update
+      if (previousRatings) {
+        const optimisticRating: DayRating = {
+          id: `temp-${Date.now()}`,
+          user_id: "",
+          date: newRating.date,
+          score: newRating.score,
+          title: newRating.title,
+          comment: newRating.comment || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        const existingIndex = previousRatings.findIndex(r => r.date === newRating.date);
+
+        if (existingIndex >= 0) {
+          const updated = [...previousRatings];
+          updated[existingIndex] = { ...updated[existingIndex], ...optimisticRating };
+          queryClient.setQueryData(ratingsKeys.all, updated);
+        } else {
+          queryClient.setQueryData(ratingsKeys.all, [optimisticRating, ...previousRatings]);
+        }
+      }
+
+      return { previousRatings };
+    },
+    onError: (err, newRating, context) => {
+      // Rollback on error
+      if (context?.previousRatings) {
+        queryClient.setQueryData(ratingsKeys.all, context.previousRatings);
+      }
+    },
+    onSettled: (data) => {
       queryClient.invalidateQueries({ queryKey: ratingsKeys.all });
-      const date = new Date(data.date);
-      queryClient.invalidateQueries({
-        queryKey: ratingsKeys.byMonth(date.getFullYear(), date.getMonth()),
-      });
-      queryClient.invalidateQueries({
-        queryKey: ratingsKeys.byDate(data.date),
-      });
+      if (data) {
+        const date = new Date(data.date);
+        queryClient.invalidateQueries({
+          queryKey: ratingsKeys.byMonth(date.getFullYear(), date.getMonth()),
+        });
+        queryClient.setQueryData(ratingsKeys.byDate(data.date), data);
+      }
     },
   });
 }

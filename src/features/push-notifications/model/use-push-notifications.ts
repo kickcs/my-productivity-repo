@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { pushApi } from "../api";
 
@@ -23,13 +23,18 @@ export const pushKeys = {
 
 export function usePushNotifications() {
   const queryClient = useQueryClient();
+  const initStarted = useRef(false);
   const [isSupported, setIsSupported] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [localSubscription, setLocalSubscription] = useState<PushSubscription | null>(null);
 
   // Check if push notifications are supported and get local subscription
   useEffect(() => {
+    if (initStarted.current) return;
+    initStarted.current = true;
+
     const supported =
       typeof window !== "undefined" &&
       "serviceWorker" in navigator &&
@@ -38,22 +43,46 @@ export function usePushNotifications() {
 
     setIsSupported(supported);
 
-    if (supported) {
-      setPermission(Notification.permission);
+    if (!supported) {
+      setIsInitializing(false);
+      return;
+    }
 
-      // Register service worker and wait for it to be ready
-      navigator.serviceWorker
-        .register("/sw.js")
-        .then(() => navigator.serviceWorker.ready)
-        .then(async (reg) => {
-          setRegistration(reg);
-          // Check if this browser already has a subscription
-          const sub = await reg.pushManager.getSubscription();
+    setPermission(Notification.permission);
+
+    const initServiceWorker = async () => {
+      try {
+        // Check if already registered first (faster)
+        const existingReg = await navigator.serviceWorker.getRegistration("/sw.js");
+
+        if (existingReg) {
+          setRegistration(existingReg);
+          const sub = await existingReg.pushManager.getSubscription();
           setLocalSubscription(sub);
-        })
-        .catch((err) => {
-          console.error("Service Worker registration failed:", err);
-        });
+        } else {
+          const reg = await navigator.serviceWorker.register("/sw.js");
+          setRegistration(reg);
+
+          if (reg.active) {
+            const sub = await reg.pushManager.getSubscription();
+            setLocalSubscription(sub);
+          }
+        }
+      } catch (err) {
+        console.error("Service Worker initialization failed:", err);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    // Defer initialization to not block render
+    if ("requestIdleCallback" in window) {
+      const windowWithIdle = window as Window & {
+        requestIdleCallback: (callback: () => void, options?: { timeout: number }) => number;
+      };
+      windowWithIdle.requestIdleCallback(() => initServiceWorker(), { timeout: 2000 });
+    } else {
+      setTimeout(initServiceWorker, 100);
     }
   }, []);
 
@@ -112,7 +141,7 @@ export function usePushNotifications() {
         const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey,
+          applicationServerKey: applicationServerKey as BufferSource,
         });
       }
 
@@ -163,6 +192,7 @@ export function usePushNotifications() {
 
   return {
     isSupported,
+    isInitializing,
     permission,
     hasSubscription,
     isLoading: isCheckingSubscription || subscribeMutation.isPending || unsubscribeMutation.isPending,

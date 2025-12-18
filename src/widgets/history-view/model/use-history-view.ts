@@ -4,7 +4,6 @@ import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   useRatings,
-  useRatingsForMonth,
   type DayRating,
 } from "@/entities/day-rating";
 import { routes } from "@/shared/config/routes";
@@ -18,10 +17,14 @@ export function useHistoryView() {
   const [selectedRating, setSelectedRating] = useState<DayRating | undefined>();
   const [showDetail, setShowDetail] = useState(false);
 
-  const { data: monthRatings = [] } = useRatingsForMonth(
-    currentDate.getFullYear(),
-    currentDate.getMonth()
-  );
+  const monthRatings = useMemo(() => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    return ratings.filter(r => {
+      const d = new Date(r.date);
+      return d.getFullYear() === year && d.getMonth() === month;
+    });
+  }, [ratings, currentDate]);
 
   const handlePrevMonth = useCallback(() => {
     setCurrentDate(

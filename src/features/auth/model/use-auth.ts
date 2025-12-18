@@ -59,7 +59,6 @@ export function useSignIn() {
       queryClient.invalidateQueries({ queryKey: authKeys.session });
       queryClient.invalidateQueries({ queryKey: authKeys.user });
       router.push(routes.home);
-      router.refresh();
     },
   });
 }
@@ -87,7 +86,6 @@ export function useSignUp() {
       queryClient.invalidateQueries({ queryKey: authKeys.session });
       queryClient.invalidateQueries({ queryKey: authKeys.user });
       router.push(routes.home);
-      router.refresh();
     },
   });
 }
@@ -103,7 +101,6 @@ export function useSignOut() {
       queryClient.invalidateQueries({ queryKey: authKeys.user });
       queryClient.clear();
       router.push(routes.signIn);
-      router.refresh();
     },
   });
 }

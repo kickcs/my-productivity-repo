@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   IconCalendarEvent,
   IconCalendarMonth,
@@ -26,12 +28,42 @@ const navItems: NavItem[] = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  const queryClient = useQueryClient();
+
+  const prefetchHome = useCallback(async () => {
+    const { prefetchRatings } = await import("@/shared/lib/prefetch");
+    await prefetchRatings(queryClient);
+  }, [queryClient]);
+
+  const prefetchHistory = useCallback(async () => {
+    const { prefetchRatings } = await import("@/shared/lib/prefetch");
+    await prefetchRatings(queryClient);
+  }, [queryClient]);
+
+  const prefetchAnalytics = useCallback(async () => {
+    const { prefetchRatings } = await import("@/shared/lib/prefetch");
+    await prefetchRatings(queryClient);
+  }, [queryClient]);
+
+  const getPrefetchHandler = (href: string) => {
+    switch (href) {
+      case routes.home:
+        return prefetchHome;
+      case routes.history:
+        return prefetchHistory;
+      case routes.analytics:
+        return prefetchAnalytics;
+      default:
+        return undefined;
+    }
+  };
 
   return (
     <nav className="fixed bottom-0 w-full bg-background/95 backdrop-blur-lg border-t border-border pb-6 pt-3 px-6 flex justify-between items-center z-40">
       {navItems.map((item) => {
         const isActive = pathname === item.href;
         const Icon = item.icon;
+        const prefetchHandler = getPrefetchHandler(item.href);
 
         return (
           <Link
@@ -43,6 +75,8 @@ export function BottomNav() {
                 ? "text-primary"
                 : "text-muted-foreground hover:text-foreground"
             )}
+            onMouseEnter={() => !isActive && prefetchHandler?.()}
+            onTouchStart={() => !isActive && prefetchHandler?.()}
           >
             <Icon
               className="size-6"
