@@ -26,8 +26,9 @@ export function usePushNotifications() {
   const [isSupported, setIsSupported] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
+  const [localSubscription, setLocalSubscription] = useState<PushSubscription | null>(null);
 
-  // Check if push notifications are supported
+  // Check if push notifications are supported and get local subscription
   useEffect(() => {
     const supported =
       typeof window !== "undefined" &&
@@ -43,8 +44,11 @@ export function usePushNotifications() {
       // Register service worker
       navigator.serviceWorker
         .register("/sw.js")
-        .then((reg) => {
+        .then(async (reg) => {
           setRegistration(reg);
+          // Check if this browser already has a subscription
+          const sub = await reg.pushManager.getSubscription();
+          setLocalSubscription(sub);
         })
         .catch((err) => {
           console.error("Service Worker registration failed:", err);
@@ -52,11 +56,15 @@ export function usePushNotifications() {
     }
   }, []);
 
-  // Check if user has subscription in database
+  // Check if THIS browser's subscription exists in database
   const { data: hasSubscription = false, isLoading: isCheckingSubscription } = useQuery({
     queryKey: pushKeys.subscription,
-    queryFn: () => pushApi.hasSubscription(),
-    enabled: isSupported,
+    queryFn: async () => {
+      if (!localSubscription) return false;
+      // Check if this specific endpoint is in the database
+      return pushApi.hasSubscriptionForEndpoint(localSubscription.endpoint);
+    },
+    enabled: isSupported && localSubscription !== null,
   });
 
   // Subscribe mutation
@@ -96,7 +104,8 @@ export function usePushNotifications() {
 
       return subscription;
     },
-    onSuccess: () => {
+    onSuccess: (subscription) => {
+      setLocalSubscription(subscription);
       queryClient.invalidateQueries({ queryKey: pushKeys.subscription });
     },
   });
@@ -113,6 +122,7 @@ export function usePushNotifications() {
       }
     },
     onSuccess: () => {
+      setLocalSubscription(null);
       queryClient.invalidateQueries({ queryKey: pushKeys.subscription });
     },
   });

@@ -86,4 +86,23 @@ export const pushApi = {
     if (error) return false;
     return data && data.length > 0;
   },
+
+  async hasSubscriptionForEndpoint(endpoint: string): Promise<boolean> {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return false;
+
+    const { data, error } = await supabase
+      .from("push_subscriptions")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("endpoint", endpoint)
+      .limit(1);
+
+    if (error) return false;
+    return data && data.length > 0;
+  },
 };
